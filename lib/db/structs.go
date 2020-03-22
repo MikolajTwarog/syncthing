@@ -71,6 +71,10 @@ func (f FileInfoTruncated) IsSymlink() bool {
 	}
 }
 
+func (f FileInfoTruncated) IsHidden() bool {
+	return f.Hidden
+}
+
 func (f FileInfoTruncated) ShouldConflict() bool {
 	return f.LocalFlags&protocol.LocalConflictFlags != 0
 }

@@ -48,6 +48,7 @@ type Filesystem interface {
 	Type() FilesystemType
 	URI() string
 	SameFile(fi1, fi2 FileInfo) bool
+	IsHidden(name string) (bool, error)
 }
 
 // The File interface abstracts access to a regular file, being a somewhat

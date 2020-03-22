@@ -121,6 +121,28 @@ func (f *BasicFilesystem) Hide(name string) error {
 	return syscall.SetFileAttributes(p, attrs)
 }
 
+func (f *BasicFilesystem) IsHidden(name string) (bool, error) {
+	name, err := f.rooted(name)
+	if err != nil {
+		return false, err
+	}
+	p, err := syscall.UTF16PtrFromString(name)
+	if err != nil {
+		return false, err
+	}
+
+	attrs, err := syscall.GetFileAttributes(p)
+	if err != nil {
+		return false, err
+	}
+
+	if attrs & syscall.FILE_ATTRIBUTE_HIDDEN == syscall.FILE_ATTRIBUTE_HIDDEN {
+		return true, nil
+	}
+
+	return false, nil
+}
+
 func (f *BasicFilesystem) Roots() ([]string, error) {
 	kernel32, err := syscall.LoadDLL("kernel32.dll")
 	if err != nil {

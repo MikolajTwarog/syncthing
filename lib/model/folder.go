@@ -391,7 +391,7 @@ func (f *folder) scanSubdirs(subDirs []string) error {
 		LocalFlags:            f.localFlags,
 		ModTimeWindow:         f.ModTimeWindow(),
 		EventLogger:           f.evLogger,
-	})
+	}, f.Filesystem())
 
 	batchFn := func(fs []protocol.FileInfo) error {
 		if err := f.CheckHealth(); err != nil {

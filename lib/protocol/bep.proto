@@ -123,6 +123,7 @@ message FileInfo {
     bool deleted        = 6;
     bool invalid        = 7 [(gogoproto.customname) = "RawInvalid"];
     bool no_permissions = 8;
+    bool hidden         = 14;
 }
 
 enum FileInfoType {

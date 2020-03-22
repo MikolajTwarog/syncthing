@@ -560,6 +560,10 @@ func (fs *fakefs) Unhide(name string) error {
 	return nil
 }
 
+func (f *fakefs) IsHidden(name string) (bool, error) {
+	return false, nil
+}
+
 func (fs *fakefs) Glob(pattern string) ([]string, error) {
 	// gnnh we don't seem to actually require this in practice
 	return nil, errors.New("not implemented")

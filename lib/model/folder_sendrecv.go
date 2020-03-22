@@ -140,6 +140,7 @@ func newSendReceiveFolder(model *model, fset *db.FileSet, ignores *ignore.Matche
 // pull returns true if it manages to get all needed items from peers, i.e. get
 // the device in sync with the global state.
 func (f *sendReceiveFolder) pull() bool {
+	fmt.Println("pull")
 	if err := f.CheckHealth(); err != nil {
 		l.Debugln("Skipping pull of", f.Description(), "due to folder error:", err)
 		return false
@@ -1489,16 +1490,22 @@ func (f *sendReceiveFolder) performFinish(file, curFile protocol.FileInfo, hasCu
 			return err
 		}
 	}
+	fmt.Println("finish")
 
 	// Copy the parent owner and group, if we are supposed to do that.
 	if err := f.maybeCopyOwner(tempName); err != nil {
 		return err
 	}
 
+	if file.IsHidden() {
+		if err := f.fs.Hide(tempName); err != nil {
+			return err
+		}
+	}
+
 	if stat, err := f.fs.Lstat(file.Name); err == nil {
 		// There is an old file or directory already in place. We need to
 		// handle that.
-
 		if err := f.scanIfItemChanged(stat, curFile, hasCurFile, scanChan); err != nil {
 			err = errors.Wrap(err, "handling file")
 			f.newPullError(file.Name, err)

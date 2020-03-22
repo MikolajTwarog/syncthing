@@ -72,7 +72,7 @@ type ScanResult struct {
 	Path string // to be set in case Err != nil and File == nil
 }
 
-func Walk(ctx context.Context, cfg Config) chan ScanResult {
+func Walk(ctx context.Context, cfg Config, filesystem fs.Filesystem) chan ScanResult {
 	w := walker{cfg}
 
 	if w.CurrentFiler == nil {
@@ -85,7 +85,7 @@ func Walk(ctx context.Context, cfg Config) chan ScanResult {
 		w.Matcher = ignore.New(w.Filesystem)
 	}
 
-	return w.walk(ctx)
+	return w.walk(ctx, filesystem)
 }
 
 var (
@@ -100,7 +100,7 @@ type walker struct {
 
 // Walk returns the list of files found in the local folder by scanning the
 // file system. Files are blockwise hashed.
-func (w *walker) walk(ctx context.Context) chan ScanResult {
+func (w *walker) walk(ctx context.Context, filesystem fs.Filesystem) chan ScanResult {
 	l.Debugln("Walk", w.Subs, w.Matcher)
 
 	toHashChan := make(chan protocol.FileInfo)
@@ -109,7 +109,7 @@ func (w *walker) walk(ctx context.Context) chan ScanResult {
 	// A routine which walks the filesystem tree, and sends files which have
 	// been modified to the counter routine.
 	go func() {
-		hashFiles := w.walkAndHashFiles(ctx, toHashChan, finishedChan)
+		hashFiles := w.walkAndHashFiles(ctx, filesystem, toHashChan, finishedChan)
 		if len(w.Subs) == 0 {
 			w.Filesystem.Walk(".", hashFiles)
 		} else {
@@ -203,7 +203,7 @@ func (w *walker) walk(ctx context.Context) chan ScanResult {
 	return finishedChan
 }
 
-func (w *walker) walkAndHashFiles(ctx context.Context, toHashChan chan<- protocol.FileInfo, finishedChan chan<- ScanResult) fs.WalkFunc {
+func (w *walker) walkAndHashFiles(ctx context.Context, filesystem fs.Filesystem, toHashChan chan<- protocol.FileInfo, finishedChan chan<- ScanResult) fs.WalkFunc {
 	now := time.Now()
 	ignoredParent := ""
 
@@ -265,7 +265,7 @@ func (w *walker) walkAndHashFiles(ctx context.Context, toHashChan chan<- protoco
 
 		if ignoredParent == "" {
 			// parent isn't ignored, nothing special
-			return w.handleItem(ctx, path, toHashChan, finishedChan, skip)
+			return w.handleItem(ctx, path, filesystem, toHashChan, finishedChan, skip)
 		}
 
 		// Part of current path below the ignored (potential) parent
@@ -274,17 +274,17 @@ func (w *walker) walkAndHashFiles(ctx context.Context, toHashChan chan<- protoco
 		// ignored path isn't actually a parent of the current path
 		if rel == path {
 			ignoredParent = ""
-			return w.handleItem(ctx, path, toHashChan, finishedChan, skip)
+			return w.handleItem(ctx, path, filesystem, toHashChan,finishedChan, skip)
 		}
 
 		// The previously ignored parent directories of the current, not
 		// ignored path need to be handled as well.
-		if err = w.handleItem(ctx, ignoredParent, toHashChan, finishedChan, skip); err != nil {
+		if err = w.handleItem(ctx, ignoredParent, filesystem, toHashChan, finishedChan, skip); err != nil {
 			return err
 		}
 		for _, name := range strings.Split(rel, string(fs.PathSeparator)) {
 			ignoredParent = filepath.Join(ignoredParent, name)
-			if err = w.handleItem(ctx, ignoredParent, toHashChan, finishedChan, skip); err != nil {
+			if err = w.handleItem(ctx, ignoredParent, filesystem, toHashChan, finishedChan, skip); err != nil {
 				return err
 			}
 		}
@@ -294,7 +294,7 @@ func (w *walker) walkAndHashFiles(ctx context.Context, toHashChan chan<- protoco
 	}
 }
 
-func (w *walker) handleItem(ctx context.Context, path string, toHashChan chan<- protocol.FileInfo, finishedChan chan<- ScanResult, skip error) error {
+func (w *walker) handleItem(ctx context.Context, path string, filesystem fs.Filesystem, toHashChan chan<- protocol.FileInfo, finishedChan chan<- ScanResult, skip error) error {
 	info, err := w.Filesystem.Lstat(path)
 	// An error here would be weird as we've already gotten to this point, but act on it nonetheless
 	if err != nil {
@@ -321,16 +321,16 @@ func (w *walker) handleItem(ctx context.Context, path string, toHashChan chan<- 
 		return nil
 
 	case info.IsDir():
-		err = w.walkDir(ctx, path, info, finishedChan)
+		err = w.walkDir(ctx, path, info, filesystem, finishedChan)
 
 	case info.IsRegular():
-		err = w.walkRegular(ctx, path, info, toHashChan)
+		err = w.walkRegular(ctx, path, info, filesystem, toHashChan)
 	}
 
 	return err
 }
 
-func (w *walker) walkRegular(ctx context.Context, relPath string, info fs.FileInfo, toHashChan chan<- protocol.FileInfo) error {
+func (w *walker) walkRegular(ctx context.Context, relPath string, info fs.FileInfo, filesystem fs.Filesystem, toHashChan chan<- protocol.FileInfo) error {
 	curFile, hasCurFile := w.CurrentFiler.CurrentFile(relPath)
 
 	blockSize := protocol.BlockSize(info.Size())
@@ -349,7 +349,7 @@ func (w *walker) walkRegular(ctx context.Context, relPath string, info fs.FileIn
 		}
 	}
 
-	f, _ := CreateFileInfo(info, relPath, nil)
+	f, _ := CreateFileInfo(info, relPath, filesystem)
 	f = w.updateFileInfo(f, curFile)
 	f.NoPermissions = w.IgnorePerms
 	f.RawBlockSize = int32(blockSize)
@@ -380,10 +380,10 @@ func (w *walker) walkRegular(ctx context.Context, relPath string, info fs.FileIn
 	return nil
 }
 
-func (w *walker) walkDir(ctx context.Context, relPath string, info fs.FileInfo, finishedChan chan<- ScanResult) error {
+func (w *walker) walkDir(ctx context.Context, relPath string, info fs.FileInfo, filesystem fs.Filesystem, finishedChan chan<- ScanResult) error {
 	curFile, hasCurFile := w.CurrentFiler.CurrentFile(relPath)
 
-	f, _ := CreateFileInfo(info, relPath, nil)
+	f, _ := CreateFileInfo(info, relPath, filesystem)
 	f = w.updateFileInfo(f, curFile)
 	f.NoPermissions = w.IgnorePerms
 
@@ -617,5 +617,15 @@ func CreateFileInfo(fi fs.FileInfo, name string, filesystem fs.Filesystem) (prot
 	}
 	f.Size = fi.Size()
 	f.Type = protocol.FileInfoTypeFile
+
+	if filesystem != nil {
+		hidden, err := filesystem.IsHidden(name)
+		if err != nil {
+			return f, err
+		}
+		fmt.Println(hidden)
+		f.Hidden = hidden
+	}
+
 	return f, nil
 }

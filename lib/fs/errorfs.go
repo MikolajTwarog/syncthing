@@ -37,6 +37,7 @@ func (fs *errorFilesystem) SymlinksSupported() bool                             
 func (fs *errorFilesystem) Walk(root string, walkFn WalkFunc) error                     { return fs.err }
 func (fs *errorFilesystem) Unhide(name string) error                                    { return fs.err }
 func (fs *errorFilesystem) Hide(name string) error                                      { return fs.err }
+func (fs *errorFilesystem) IsHidden(name string) (bool, error)  						{return false, fs.err}
 func (fs *errorFilesystem) Glob(pattern string) ([]string, error)                       { return nil, fs.err }
 func (fs *errorFilesystem) SyncDir(name string) error                                   { return fs.err }
 func (fs *errorFilesystem) Roots() ([]string, error)                                    { return nil, fs.err }

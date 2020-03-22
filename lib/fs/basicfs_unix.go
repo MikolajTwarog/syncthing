@@ -52,6 +52,10 @@ func (f *BasicFilesystem) Hide(name string) error {
 	return err
 }
 
+func (f *BasicFilesystem) IsHidden(name string) (bool, error) {
+	return false, nil
+}
+
 func (f *BasicFilesystem) Roots() ([]string, error) {
 	return []string{"/"}, nil
 }

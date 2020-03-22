@@ -84,6 +84,10 @@ func (f FileInfo) IsSymlink() bool {
 	}
 }
 
+func (f FileInfo) IsHidden() bool {
+	return f.Hidden
+}
+
 func (f FileInfo) HasPermissionBits() bool {
 	return !f.NoPermissions
 }
